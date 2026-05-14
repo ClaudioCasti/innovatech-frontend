@@ -1,0 +1,46 @@
+name: CI/CD Frontend Innovatech
+
+on:
+  push:
+    branches:
+      - deploy
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v3
+
+      - name: Login a Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build y Push imagen S
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ secrets.DOCKER_USERNAME }}/innovatech-frontend:latest
+          build-args: |
+            VITE_API_VENTAS=${{ secrets.VITE_API_VENTAS }}
+            VITE_API_DESPACHOS=${{ secrets.VITE_API_DESPACHOS }}
+
+      - name: Deploy en EC2 Frontend
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.EC2_FRONTEND_HOST }}
+          username: ubuntu
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            docker pull ${{ secrets.DOCKER_USERNAME }}/innovatech-frontend:latest
+            docker stop innovatech-frontend || true
+            docker rm innovatech-frontend || true
+            docker run -d \
+              --name innovatech-frontend \
+              -p 80:80 \
+              --restart unless-stopped \
+              ${{ secrets.DOCKER_USERNAME }}/innovatech-frontend:latest
